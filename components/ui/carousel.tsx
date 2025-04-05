@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect, Children, ReactNode,useRef } from 'react';
+import { useState, useEffect, Children, ReactNode, useRef } from 'react';
 import { useGesture } from '@use-gesture/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '../hooks/useIsMobile';
+import CarouselDots from './carouselDots';
 
+// ---------- Types ----------
 interface CarouselProps {
   children: ReactNode;
   autoAdvance?: boolean;
@@ -12,17 +15,35 @@ interface CarouselProps {
   showDots?: boolean;
 }
 
-export function Carousel({
-  children,
-  autoAdvance = true,
-  interval = 5000,
-  showControls = true,
-  showDots = true,
-}: CarouselProps) {
+// ---------- Constants ----------
+const slideVariants = {
+  enter: (direction: 'left' | 'right') => ({ x: direction === 'right' ? '100%' : '-100%', opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (direction: 'left' | 'right') => ({ x: direction === 'right' ? '-100%' : '100%', opacity: 0 }),
+};
+
+// ---------- Chevron Icons ----------
+const ChevronLeft = ({ className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+  </svg>
+);
+
+const ChevronRight = ({ className = '' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+  </svg>
+);
+
+
+// ---------- Main Carousel ----------
+export function Carousel({ children, autoAdvance = true, interval = 5000, showControls = true, showDots = true }: CarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [isHovered, setIsHovered] = useState(false);
   const slides = Children.toArray(children);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   const handleNext = () => {
     setDirection('right');
@@ -35,12 +56,19 @@ export function Carousel({
   };
 
   useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowRight') handleNext();
+      if (event.key === 'ArrowLeft') handlePrev();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (!autoAdvance || isHovered) return;
     const timer = setInterval(handleNext, interval);
     return () => clearInterval(timer);
   }, [autoAdvance, interval, isHovered]);
-
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useGesture(
     {
@@ -49,14 +77,11 @@ export function Carousel({
           cancel?.();
           xDir > 0 ? handlePrev() : handleNext();
         }
-      }
+      },
     },
     {
       target: containerRef,
-      drag: {
-        filterTaps: true,
-        threshold: 10
-      }
+      drag: { filterTaps: true, threshold: 10 },
     }
   );
 
@@ -67,13 +92,14 @@ export function Carousel({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <AnimatePresence initial={false} custom={direction}>
+      <AnimatePresence custom={direction} initial={false}>
         <motion.div
           key={activeIndex}
           custom={direction}
-          initial={{ opacity: 0, x: direction === 'right' ? '100%' : '-100%' }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: direction === 'right' ? '-100%' : '100%' }}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
           transition={{ duration: 0.4, ease: 'easeInOut' }}
           className="absolute inset-0 flex items-center justify-center"
         >
@@ -101,60 +127,21 @@ export function Carousel({
       )}
 
       {showDots && slides.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                setDirection(index > activeIndex ? 'right' : 'left');
-                setActiveIndex(index);
-              }}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === activeIndex ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
-              }`}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
-        </div>
+  <CarouselDots
+  slides={slides}
+  activeIndex={activeIndex}
+  setActiveIndex={setActiveIndex}
+  setDirection={setDirection}
+  isMobile={isMobile}
+/>
       )}
     </div>
   );
 }
 
-function ChevronLeft({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className={className}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-    </svg>
-  );
-}
-
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      className={className}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-    </svg>
-  );
-}
-
-export function Slide({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`w-full h-full flex items-center justify-center ${className}`}>
-      <div className="max-w-7xl w-full px-4">{children}</div>
-    </div>
-  );
-}
+// ---------- Slide Wrapper ----------
+export const Slide = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
+  <div className={`w-full h-full flex items-center justify-center ${className}`}>
+    <div className="max-w-7xl w-full px-4">{children}</div>
+  </div>
+);
