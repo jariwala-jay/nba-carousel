@@ -36,6 +36,7 @@ export default function CarouselDots({
             onClick={() => {
               setDirection(index > activeIndex ? 'right' : 'left');
               setActiveIndex(index);
+              setHoveredIndex(null);
             }}
             className={`w-3 h-3 rounded-full transition-all ease-in-out duration-10 ${
               index === activeIndex ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/70'
